@@ -9,8 +9,9 @@ from langchain.messages import HumanMessage, AIMessage, SystemMessage
 load_dotenv()
 
 # streamlit framework
-st.title('Langchain demo with Gemini API')
+st.title("Langchain demo with Gemini API")
 input_text = st.text_input("Search the topic you want: ")
+
 
 # tools
 @tool
@@ -18,21 +19,23 @@ def search(query: str) -> str:
     """Search for information."""
     return f"Results for: {query}"
 
+
 # Initilize Gemini AI Model
 model = init_chat_model(
     "google_genai:gemini-3.5-flash-lite",
     timeout=30,
     max_tokens=1000,
-    max_retries=6,)
+    max_retries=6,
+)
 
 messages = [
     SystemMessage("You are a wikipedia"),
     HumanMessage(input_text),
-    AIMessage("Cherry blossoms bloom...")
+    AIMessage("Cherry blossoms bloom..."),
 ]
 response = model.invoke(messages)
 
-if (input_text):
+if input_text:
     response = model.invoke(input_text)
     # if isinstance(response.content, str):
     #     text = response.content
@@ -44,5 +47,3 @@ if (input_text):
     #     )
 
     st.write(response)
-
-
