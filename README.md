@@ -12,4 +12,5 @@ python manage.py runserver
 
 # Migration
 python manage.py check
+python manage.py makemigrations cards
 python manage.py migrate
