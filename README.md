@@ -9,3 +9,7 @@ pip install -r .\requirements.txt
 
 # Run the program
 python manage.py runserver
+
+# Migration
+python manage.py check
+python manage.py migrate
