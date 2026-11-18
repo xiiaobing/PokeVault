@@ -77,3 +77,26 @@ class ExchangeRate(models.Model):
             f"1 {self.base_currency} = {self.rate} "
             f"{self.target_currency} ({self.rate_date})"
         )
+
+
+class WatchlistItem(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="watchlist_items"
+    )
+
+    card = models.ForeignKey(
+        Card,
+        on_delete=models.CASCADE,
+        related_name="watchlist_items"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "card")
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.card.name}"

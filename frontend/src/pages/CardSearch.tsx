@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { Search, Loader2, AlertCircle, Sparkles } from "lucide-react";
+import { Search, Loader2, AlertCircle, Sparkles, Bookmark } from "lucide-react";
 import axios from "axios";
 import AuthenticatedImage from "../components/AuthenticatedImage";
 
@@ -8,6 +8,7 @@ import { searchCards } from "../services/cardService";
 import { addCollectionItem } from "../services/collectionService";
 import type { Card, CardPriceHistory } from "../types/card";
 import { getExchangeRate } from "../services/exchangeRateService";
+import { addToWatchlist, getWatchlist } from "../services/watchlistService";
 
 function getLatestPrices(priceHistory: CardPriceHistory[]): CardPriceHistory[] {
   const latestPrices = new Map<string, CardPriceHistory>();
@@ -55,10 +56,14 @@ function formatPrice(value: string | null, currency: string) {
 
 function CardResult({
   card,
-  usdToMyr
+  usdToMyr,
+  isWatchlisted,
+  onWatchlistAdded
 }: {
   card: Card;
   usdToMyr: number | null;
+  isWatchlisted: boolean;
+  onWatchlistAdded: (cardId: number) => void;
 }) {
   const latestPrices = getLatestPrices(card.price_history).filter((price) => {
     const displayPrice = getDisplayPrice(price);
@@ -75,6 +80,8 @@ function CardResult({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [savingWatchlist, setSavingWatchlist] = useState(false);
+  const [watchlistMessage, setWatchlistMessage] = useState("");
 
   const handleAddToCollection = async () => {
     setSaving(true);
@@ -102,6 +109,22 @@ function CardResult({
       setMessage("Unable to add card. Please try again.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAddToWatchlist = async () => {
+    setSavingWatchlist(true);
+    setWatchlistMessage("");
+
+    try {
+      await addToWatchlist(card.id);
+      onWatchlistAdded(card.id);
+      setWatchlistMessage("Card added to your watchlist!");
+    } catch (error) {
+      console.error("Failed to add card to watchlist:", error);
+      setWatchlistMessage("Unable to add card. Please try again.");
+    } finally {
+      setSavingWatchlist(false);
     }
   };
 
@@ -143,7 +166,7 @@ function CardResult({
         </div>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3 space-y-2">
         <button
           onClick={() => {
             setShowForm(!showForm);
@@ -153,6 +176,23 @@ function CardResult({
         >
           {showForm ? "Cancel" : "+ Add to Collection"}
         </button>
+
+        <button
+          onClick={handleAddToWatchlist}
+          disabled={savingWatchlist || isWatchlisted}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold text-text-primary transition hover:border-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Bookmark size={16} />
+          {savingWatchlist
+            ? "Adding..."
+            : isWatchlisted
+              ? "Already in Watchlist"
+              : "Add to Watchlist"}
+        </button>
+
+        {watchlistMessage && (
+          <p className="text-xs text-text-secondary">{watchlistMessage}</p>
+        )}
       </div>
 
       {message && <p className="mt-2 text-xs text-text-secondary">{message}</p>}
@@ -310,6 +350,9 @@ export default function CardSearch() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [watchlistedCardIds, setWatchlistedCardIds] = useState<Set<number>>(
+    new Set()
+  );
 
   useEffect(() => {
     const fetchExchangeRate = async () => {
@@ -322,8 +365,17 @@ export default function CardSearch() {
         console.error("Failed to fetch exchange rate:", error);
       }
     };
+    const fetchWatchlist = async () => {
+      try {
+        const data = await getWatchlist();
 
+        setWatchlistedCardIds(new Set(data.map((item) => item.card)));
+      } catch (error) {
+        console.error("Failed to fetch watchlist:", error);
+      }
+    };
     fetchExchangeRate();
+    fetchWatchlist();
   }, []);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -368,6 +420,14 @@ export default function CardSearch() {
       setLoading(false);
     }
   }
+
+  const handleWatchlistAdded = (cardId: number) => {
+    setWatchlistedCardIds((previous) => {
+      const updated = new Set(previous);
+      updated.add(cardId);
+      return updated;
+    });
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -478,7 +538,13 @@ export default function CardSearch() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {cards.map((card) => (
-              <CardResult key={card.id} card={card} usdToMyr={usdToMyr} />
+              <CardResult
+                key={card.id}
+                card={card}
+                usdToMyr={usdToMyr}
+                isWatchlisted={watchlistedCardIds.has(card.id)}
+                onWatchlistAdded={handleWatchlistAdded}
+              />
             ))}
           </div>
         </section>

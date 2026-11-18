@@ -10,8 +10,8 @@ from rest_framework.decorators import api_view, permission_classes
 
 
 import requests
-from .models import CollectionItem, ExchangeRate
-from .serializers import CollectionItemSerializer, RegisterSerializer
+from .models import CollectionItem, ExchangeRate, WatchlistItem
+from .serializers import CollectionItemSerializer, RegisterSerializer, WatchlistItemSerializer
 from django.contrib.auth import authenticate
 from django.core.cache import cache
 
@@ -27,6 +27,41 @@ class CollectionItemViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         # Automatically assign the logged-in user
+        serializer.save(user=self.request.user)
+
+class WatchlistItemViewSet(viewsets.ModelViewSet):
+    serializer_class = WatchlistItemSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            WatchlistItem.objects
+            .filter(user=self.request.user)
+            .select_related("card")
+        )
+
+    def create(self, request, *args, **kwargs):
+        card_id = request.data.get("card")
+
+        if not card_id:
+            return Response(
+                {"error": "Card ID is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        item, created = WatchlistItem.objects.get_or_create(
+            user=request.user,
+            card_id=card_id
+        )
+
+        serializer = self.get_serializer(item)
+
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+
+    def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
 class RegisterView(APIView):

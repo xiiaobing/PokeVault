@@ -1,6 +1,6 @@
 
 from rest_framework import serializers
-from .models import CollectionItem
+from .models import CollectionItem, WatchlistItem
 from django.contrib.auth.models import User
 
 
@@ -60,6 +60,44 @@ class CollectionItemSerializer(serializers.ModelSerializer):
             return latest_price.market_price
 
         return None
+
+class WatchlistItemSerializer(serializers.ModelSerializer):
+    card_name = serializers.CharField(source="card.name", read_only=True)
+    card_set = serializers.CharField(source="card.set_name", read_only=True)
+    card_number = serializers.CharField(source="card.card_number", read_only=True)
+
+    card_image_url = serializers.SerializerMethodField()
+    latest_market_price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = WatchlistItem
+        fields = [
+            "id",
+            "card",
+            "card_name",
+            "card_set",
+            "card_number",
+            "card_image_url",
+            "latest_market_price",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def get_card_image_url(self, obj):
+        return f"/cards/{obj.card.id}/image/"
+
+    def get_latest_market_price(self, obj):
+        latest_price = (
+            obj.card.price_history
+            .filter(provider="tcgplayer")
+            .order_by("-fetched_at")
+            .first()
+        )
+
+        if not latest_price:
+            return None
+
+        return latest_price.market_price
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
