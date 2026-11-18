@@ -38,5 +38,6 @@ class CardSerializer(serializers.ModelSerializer):
             "set_code",
             "card_number",
             "rarity",
+            "image_url",
             "price_history",
         ]

@@ -31,3 +31,6 @@ dist/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Postman local workspace binding
+.postman/

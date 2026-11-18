@@ -4,6 +4,8 @@ import requests
 from decimal import Decimal
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.db.models import Max, Q
+
 
 from .models import Card, CardPriceHistory
 
@@ -64,6 +66,31 @@ def parse_source_datetime(value):
 
     return dt
 
+def get_cached_cards(query):
+    """
+    Retrieve cards from the database if they were
+    retrieved from PokéWallet today.
+    """
+
+    today = timezone.localdate()
+
+    queryset = Card.objects.filter(
+        updated_at__date=today
+    )
+
+    # Search using every word in the query
+    for word in query.split():
+        queryset = queryset.filter(
+            Q(name__icontains=word)
+            | Q(set_name__icontains=word)
+            | Q(set_id__icontains=word)
+            | Q(set_code__icontains=word)
+            | Q(card_number__icontains=word)
+            | Q(rarity__icontains=word)
+        )
+
+    return queryset.distinct()
+
 
 def save_card_results(data):
     saved_cards = []
@@ -75,17 +102,17 @@ def save_card_results(data):
         card, created = Card.objects.update_or_create(
             pokewallet_id=result["id"],
             defaults={
-                "name": card_info.get("name", ""),
-                "set_name": card_info.get("set_name", ""),
-                "set_id": card_info.get("set_id", ""),
-                "set_code": card_info.get("set_code", ""),
-                "card_number": card_info.get("card_number", ""),
-                "rarity": card_info.get("rarity", ""),
+                "name": card_info.get("name") or "",
+                "set_name": card_info.get("set_name") or "",
+                "set_id": card_info.get("set_id") or "",
+                "set_code": card_info.get("set_code") or "",
+                "card_number": card_info.get("card_number") or "",
+                "rarity": card_info.get("rarity") or "",
             }
         )
 
         # Save TCGplayer price history
-        tcgplayer = result.get("tcgplayer", {})
+        tcgplayer = result.get("tcgplayer") or {}
 
         for price in tcgplayer.get("prices", []):
             source_updated_at = parse_source_datetime(
@@ -108,31 +135,6 @@ def save_card_results(data):
                     ),
                 },
             )
-
-        # Save Cardmarket price history
-        cardmarket = result.get("cardmarket", {})
-
-        for price in cardmarket.get("prices", []):
-            source_updated_at = parse_source_datetime(
-                price.get("updated_at")
-            )
-
-            CardPriceHistory.objects.update_or_create(
-                card=card,
-                provider="cardmarket",
-                variant=price.get("variant_type", ""),
-                source_updated_at=source_updated_at,
-                defaults={
-                    "currency": "EUR",
-                    "low_price": to_decimal(price.get("low")),
-                    "average_price": to_decimal(price.get("avg")),
-                    "avg_1": to_decimal(price.get("avg1")),
-                    "avg_7": to_decimal(price.get("avg7")),
-                    "avg_30": to_decimal(price.get("avg30")),
-                    "trend_price": to_decimal(price.get("trend")),
-                },
-            )
-
 
         saved_cards.append(card)
 

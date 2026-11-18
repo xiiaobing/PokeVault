@@ -4,6 +4,7 @@ from .views import (
     search_cards_api,
     card_price_history_api,
     card_detail_api,
+    card_image_api,
     CardListAPIView,
 )
 
@@ -15,5 +16,10 @@ urlpatterns = [
         "<int:card_id>/prices/",
         card_price_history_api,
         name="card-price-history",
+    ),
+    path(
+        "<int:card_id>/image/",
+        card_image_api,
+        name="card-image",
     ),
 ]

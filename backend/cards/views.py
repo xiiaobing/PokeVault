@@ -1,6 +1,8 @@
 import logging
 import requests
 
+import os
+from django.http import HttpResponse
 from django.db import DatabaseError
 from django.shortcuts import get_object_or_404
 
@@ -12,7 +14,11 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.generics import ListAPIView
 
 from .models import Card
-from .services import search_cards, save_card_results
+from .services import (
+    search_cards,
+    save_card_results,
+    get_cached_cards,
+)
 from .serializers import CardSerializer, CardPriceHistorySerializer
 
 
@@ -20,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class CardPagination(PageNumberPagination):
-    page_size = 10
+    page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 50
 
@@ -42,11 +48,22 @@ def search_cards_api(request):
         )
 
     try:
-        result = search_cards(query)
-        saved_cards = save_card_results(result)
+        # Check today's cached results first
+        cached_cards = get_cached_cards(query)
+
+        if cached_cards.exists():
+            cards = cached_cards
+            logger.info("Returning cached card results for: %s", query)
+
+        else:
+            # No cached results, fetch from PokéWallet
+            logger.info("Fetching card results from PokéWallet: %s", query)
+
+            result = search_cards(query)
+            cards = save_card_results(result)
 
         paginator = CardPagination()
-        page = paginator.paginate_queryset(saved_cards, request)
+        page = paginator.paginate_queryset(cards, request)
 
         serializer = CardSerializer(page, many=True)
 
@@ -140,3 +157,46 @@ class CardListAPIView(ListAPIView):
 
         return queryset
 
+@api_view(["GET"])
+def card_image_api(request, card_id):
+    card = get_object_or_404(Card, pk=card_id)
+
+    api_key = os.getenv("POKEWALLET_API_KEY")
+
+    if not api_key:
+        return Response(
+            {"error": "PokéWallet API key is missing."},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    try:
+        response = requests.get(
+            f"https://api.pokewallet.io/images/{card.pokewallet_id}",
+            headers={"X-API-Key": api_key},
+            params={"size": "low"},
+            timeout=15,
+        )
+
+        response.raise_for_status()
+
+        content_type = response.headers.get(
+            "Content-Type", "image/jpeg"
+        )
+
+        if not content_type.startswith("image/"):
+            return Response(
+                {"error": "Invalid image response from PokéWallet."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return HttpResponse(
+            response.content,
+            content_type=content_type,
+        )
+
+    except requests.RequestException:
+        logger.exception("Unable to retrieve card image")
+        return Response(
+            {"error": "Unable to retrieve card image."},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
