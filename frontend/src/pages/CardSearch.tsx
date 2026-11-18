@@ -5,7 +5,7 @@ import axios from "axios";
 import AuthenticatedImage from "../components/AuthenticatedImage";
 
 import { searchCards } from "../services/cardService";
-
+import { addCollectionItem } from "../services/collectionService";
 import type { Card, CardPriceHistory } from "../types/card";
 
 function getLatestPrices(priceHistory: CardPriceHistory[]): CardPriceHistory[] {
@@ -58,6 +58,46 @@ function CardResult({ card }: { card: Card }) {
     return displayPrice.value !== null && Number(displayPrice.value) > 0;
   });
 
+  const [showForm, setShowForm] = useState(false);
+  const [quantity, setQuantity] = useState(1);
+  const [condition, setCondition] = useState<"NM" | "LP" | "MP" | "HP" | "DMG">(
+    "NM"
+  );
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const handleAddToCollection = async () => {
+    setSaving(true);
+    setMessage("");
+
+    try {
+      await addCollectionItem({
+        card: card.id,
+        quantity,
+        condition,
+        purchase_price: purchasePrice || null,
+        purchase_date: purchaseDate || null,
+        notes
+      });
+
+      setMessage("Card added to your collection!");
+      setShowForm(false);
+      setQuantity(1);
+      setCondition("NM");
+      setPurchasePrice("");
+      setPurchaseDate("");
+      setNotes("");
+    } catch (error) {
+      console.error("Failed to add card:", error);
+      setMessage("Unable to add card. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <article className="rounded-xl border border-border bg-surface p-3 transition hover:border-primary/50">
       <div className="flex gap-3">
@@ -95,6 +135,109 @@ function CardResult({ card }: { card: Card }) {
           </p>
         </div>
       </div>
+
+      <div className="mt-3">
+        <button
+          onClick={() => {
+            setShowForm(!showForm);
+            setMessage("");
+          }}
+          className="w-full rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+        >
+          {showForm ? "Cancel" : "+ Add to Collection"}
+        </button>
+      </div>
+
+      {message && <p className="mt-2 text-xs text-text-secondary">{message}</p>}
+
+      {showForm && (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleAddToCollection();
+          }}
+          className="mt-3 space-y-3 rounded-lg border border-border bg-background p-3"
+        >
+          <h4 className="text-sm font-semibold text-text-primary">
+            Add Card Details
+          </h4>
+
+          <div>
+            <label className="text-xs text-text-secondary">Quantity</label>
+            <input
+              type="number"
+              min="1"
+              value={quantity}
+              onChange={(event) =>
+                setQuantity(Math.max(1, Number(event.target.value)))
+              }
+              required
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-text-secondary">Condition</label>
+            <select
+              value={condition}
+              onChange={(event) =>
+                setCondition(event.target.value as typeof condition)
+              }
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+            >
+              <option value="NM">Near Mint</option>
+              <option value="LP">Lightly Played</option>
+              <option value="MP">Moderately Played</option>
+              <option value="HP">Heavily Played</option>
+              <option value="DMG">Damaged</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs text-text-secondary">
+              Purchase Price (RM)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={purchasePrice}
+              onChange={(event) => setPurchasePrice(event.target.value)}
+              placeholder="Optional"
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-text-secondary">Purchase Date</label>
+            <input
+              type="date"
+              value={purchaseDate}
+              onChange={(event) => setPurchaseDate(event.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs text-text-secondary">Notes</label>
+            <textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              placeholder="Optional notes..."
+              rows={2}
+              className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="w-full rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+          >
+            {saving ? "Adding..." : "Save to Collection"}
+          </button>
+        </form>
+      )}
 
       <div className="mt-3 border-t border-border pt-3">
         <h4 className="mb-2 text-sm font-semibold text-text-primary">

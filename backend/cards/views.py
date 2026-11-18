@@ -21,6 +21,7 @@ from .services import (
     search_cards,
     save_card_results,
     get_cached_cards,
+    save_search_cache,
 )
 from .serializers import CardSerializer, CardPriceHistorySerializer
 
@@ -36,34 +37,25 @@ class CardPagination(PageNumberPagination):
 
 @api_view(["GET"])
 def search_cards_api(request):
-    query = request.query_params.get("q", "").strip()
+    query = request.GET.get("q", "").strip()
 
     if not query:
         return Response(
-            {"error": "A search query is required. Use ?q=card_number."},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if len(query) > 100:
-        return Response(
-            {"error": "Search query must be 100 characters or fewer."},
-            status=status.HTTP_400_BAD_REQUEST,
+            {"error": "Search query is required."},
+            status=status.HTTP_400_BAD_REQUEST
         )
 
     try:
-        # Check today's cached results first
-        cached_cards = get_cached_cards(query)
+        cached_search = get_cached_cards(query)
 
-        if cached_cards.exists():
-            cards = cached_cards
-            logger.info("Returning cached card results for: %s", query)
-
+        if cached_search is not None:
+            cards = cached_search.cards.all()
         else:
-            # No cached results, fetch from PokéWallet
-            logger.info("Fetching card results from PokéWallet: %s", query)
-
             result = search_cards(query)
             cards = save_card_results(result)
+
+            # Save the exact search result against its normalized query.
+            save_search_cache(query, cards)
 
         paginator = CardPagination()
         page = paginator.paginate_queryset(cards, request)
@@ -72,25 +64,10 @@ def search_cards_api(request):
 
         return paginator.get_paginated_response(serializer.data)
 
-    except requests.RequestException:
-        logger.exception("PokéWallet API request failed")
+    except Exception as e:
         return Response(
-            {"error": "Unable to retrieve card data from PokéWallet."},
-            status=status.HTTP_502_BAD_GATEWAY,
-        )
-
-    except DatabaseError:
-        logger.exception("Database error while saving card search results")
-        return Response(
-            {"error": "Unable to save the card search results."},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-    except Exception:
-        logger.exception("Unexpected error during card search")
-        return Response(
-            {"error": "An unexpected error occurred."},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            {"error": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
 

@@ -22,3 +22,17 @@ export async function getCollection(): Promise<CollectionItem[]> {
     ? response.data
     : response.data.results
 }
+
+export interface AddCollectionItemData {
+  card: number
+  quantity: number
+  condition: 'NM' | 'LP' | 'MP' | 'HP' | 'DMG'
+  purchase_price?: string | null
+  purchase_date?: string | null
+  notes?: string
+}
+
+export async function addCollectionItem(data: AddCollectionItemData) {
+  const response = await api.post('/collection/', data)
+  return response.data
+}

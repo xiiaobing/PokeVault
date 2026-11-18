@@ -9,7 +9,7 @@ from django.core.files.base import ContentFile
 from urllib.parse import urlparse
 
 
-from .models import Card, CardPriceHistory
+from .models import Card, CardPriceHistory, CardSearchCache
 
 
 BASE_URL = "https://api.pokewallet.io"
@@ -124,31 +124,32 @@ def download_card_image(card):
         )
 
 
+def normalize_search_query(query):
+    words = query.lower().split()
+    return " ".join(sorted(words))
+
+
 def get_cached_cards(query):
-    """
-    Retrieve cards from the database if they were
-    retrieved from PokéWallet today.
-    """
+    normalized_query = normalize_search_query(query)
 
     today = timezone.localdate()
 
-    queryset = Card.objects.filter(
-        updated_at__date=today
+    return CardSearchCache.objects.filter(
+        query=normalized_query,
+        fetched_at__date=today
+    ).first()
+
+
+def save_search_cache(query, cards):
+    normalized_query = normalize_search_query(query)
+
+    cache, created = CardSearchCache.objects.update_or_create(
+        query=normalized_query,
+        defaults={}
     )
 
-    # Search using every word in the query
-    for word in query.split():
-        queryset = queryset.filter(
-            Q(name__icontains=word)
-            | Q(set_name__icontains=word)
-            | Q(set_id__icontains=word)
-            | Q(set_code__icontains=word)
-            | Q(card_number__icontains=word)
-            | Q(rarity__icontains=word)
-        )
-
-    return queryset.distinct()
-
+    cache.cards.set(cards)
+    return cache
 
 
 def save_card_results(data):

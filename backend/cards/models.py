@@ -94,3 +94,21 @@ class CardPriceHistory(models.Model):
 
     def __str__(self):
         return f"{self.card.name} - {self.provider} - {self.variant}"
+
+
+class CardSearchCache(models.Model):
+    query = models.CharField(
+        max_length=100,
+        unique=True
+    )
+
+    cards = models.ManyToManyField(
+        Card,
+        related_name="search_caches",
+        blank=True
+    )
+
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.query
