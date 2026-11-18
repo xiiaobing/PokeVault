@@ -13,8 +13,14 @@ class Card(models.Model):
     set_code = models.CharField(max_length=50, blank=True)
     card_number = models.CharField(max_length=50)
     rarity = models.CharField(max_length=100, blank=True)
+    # Original image URL from PokéWallet
     image_url = models.URLField(max_length=500, blank=True)
-
+    # Locally stored card image
+    image = models.ImageField(
+        upload_to="cards/",
+        blank=True,
+        null=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

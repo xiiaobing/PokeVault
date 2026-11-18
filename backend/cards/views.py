@@ -1,10 +1,12 @@
 import logging
 import requests
-
+import mimetypes
 import os
-from django.http import HttpResponse
+
+from django.http import FileResponse, HttpResponse
 from django.db import DatabaseError
 from django.shortcuts import get_object_or_404
+from django.core.files.base import ContentFile
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -12,6 +14,7 @@ from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.generics import ListAPIView
+
 
 from .models import Card
 from .services import (
@@ -157,10 +160,21 @@ class CardListAPIView(ListAPIView):
 
         return queryset
 
+
 @api_view(["GET"])
 def card_image_api(request, card_id):
     card = get_object_or_404(Card, pk=card_id)
 
+    # 1. Check local storage first
+    if card.image:
+        content_type, _ = mimetypes.guess_type(card.image.name)
+
+        return FileResponse(
+            card.image.open("rb"),
+            content_type=content_type or "image/jpeg"
+        )
+
+    # 2. No local image: retrieve it from PokéWallet
     api_key = os.getenv("POKEWALLET_API_KEY")
 
     if not api_key:
@@ -189,6 +203,22 @@ def card_image_api(request, card_id):
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+        # 3. Save the downloaded image locally
+        extension = {
+            "image/jpeg": ".jpg",
+            "image/png": ".png",
+            "image/webp": ".webp",
+        }.get(content_type.split(";")[0].lower(), ".jpg")
+
+        filename = f"{card.pokewallet_id}{extension}"
+
+        card.image.save(
+            filename,
+            ContentFile(response.content),
+            save=True
+        )
+
+        # 4. Return the downloaded image
         return HttpResponse(
             response.content,
             content_type=content_type,
@@ -196,6 +226,7 @@ def card_image_api(request, card_id):
 
     except requests.RequestException:
         logger.exception("Unable to retrieve card image")
+
         return Response(
             {"error": "Unable to retrieve card image."},
             status=status.HTTP_502_BAD_GATEWAY,

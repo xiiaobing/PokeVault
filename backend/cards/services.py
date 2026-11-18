@@ -5,6 +5,8 @@ from decimal import Decimal
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.db.models import Max, Q
+from django.core.files.base import ContentFile
+from urllib.parse import urlparse
 
 
 from .models import Card, CardPriceHistory
@@ -66,6 +68,62 @@ def parse_source_datetime(value):
 
     return dt
 
+
+def download_card_image(card):
+    """
+    Download a card image from PokéWallet and save it locally.
+    """
+
+    if card.image:
+        return
+
+    api_key = os.getenv("POKEWALLET_API_KEY")
+
+    if not api_key:
+        return
+
+    image_url = (
+        f"{BASE_URL}/images/{card.pokewallet_id}?size=low"
+    )
+
+    try:
+        response = requests.get(
+            image_url,
+            headers={"X-API-Key": api_key},
+            timeout=15
+        )
+
+        response.raise_for_status()
+
+        content_type = response.headers.get("Content-Type", "")
+
+        if not content_type.startswith("image/"):
+            return
+
+        extension = {
+            "image/jpeg": ".jpg",
+            "image/png": ".png",
+            "image/webp": ".webp",
+        }.get(content_type.split(";")[0].lower(), ".jpg")
+
+        filename = f"{card.pokewallet_id}{extension}"
+
+        card.image.save(
+            filename,
+            ContentFile(response.content),
+            save=True
+        )
+
+    except requests.RequestException:
+        # Image download failure should not prevent card creation.
+        import logging
+        logging.getLogger(__name__).warning(
+            "Unable to download image for card %s",
+            card.name,
+            exc_info=True
+        )
+
+
 def get_cached_cards(query):
     """
     Retrieve cards from the database if they were
@@ -92,15 +150,22 @@ def get_cached_cards(query):
     return queryset.distinct()
 
 
+
 def save_card_results(data):
     saved_cards = []
 
     for result in data.get("results", []):
         card_info = result.get("card_info", {})
 
+        pokewallet_id = result["id"]
+
+        image_url = (
+            f"{BASE_URL}/images/{pokewallet_id}?size=low"
+        )
+
         # Save or update the card
         card, created = Card.objects.update_or_create(
-            pokewallet_id=result["id"],
+            pokewallet_id=pokewallet_id,
             defaults={
                 "name": card_info.get("name") or "",
                 "set_name": card_info.get("set_name") or "",
@@ -108,8 +173,13 @@ def save_card_results(data):
                 "set_code": card_info.get("set_code") or "",
                 "card_number": card_info.get("card_number") or "",
                 "rarity": card_info.get("rarity") or "",
+                "image_url": image_url,
             }
         )
+
+        # Download image only when no local image exists
+        if not card.image:
+            download_card_image(card)
 
         # Save TCGplayer price history
         tcgplayer = result.get("tcgplayer") or {}
@@ -129,7 +199,9 @@ def save_card_results(data):
                     "low_price": to_decimal(price.get("low_price")),
                     "mid_price": to_decimal(price.get("mid_price")),
                     "high_price": to_decimal(price.get("high_price")),
-                    "market_price": to_decimal(price.get("market_price")),
+                    "market_price": to_decimal(
+                        price.get("market_price")
+                    ),
                     "direct_low_price": to_decimal(
                         price.get("direct_low_price")
                     ),
