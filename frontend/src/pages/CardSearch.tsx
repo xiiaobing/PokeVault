@@ -1,10 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import type { FormEvent } from "react";
-import { Search, Loader2, AlertCircle, Sparkles, Bookmark } from "lucide-react";
+import {
+  Search,
+  Loader2,
+  AlertCircle,
+  Sparkles,
+  Bookmark,
+  Camera
+} from "lucide-react";
 import axios from "axios";
 import AuthenticatedImage from "../components/AuthenticatedImage";
 
-import { searchCards } from "../services/cardService";
+import { searchCards, scanCard } from "../services/cardService";
 import { addCollectionItem } from "../services/collectionService";
 import type { Card, CardPriceHistory } from "../types/card";
 import { getExchangeRate } from "../services/exchangeRateService";
@@ -353,6 +360,11 @@ export default function CardSearch() {
   const [watchlistedCardIds, setWatchlistedCardIds] = useState<Set<number>>(
     new Set()
   );
+  const [showScanOptions, setShowScanOptions] = useState(false);
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     const fetchExchangeRate = async () => {
@@ -418,6 +430,51 @@ export default function CardSearch() {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleScan(file: File) {
+    if (!file.type.startsWith("image/")) {
+      setError("Please select a valid image.");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError("Image size must not exceed 10 MB.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setScanning(true);
+      setError("");
+      setCards([]);
+      setTotalCount(0);
+
+      const result = await scanCard(file);
+
+      if (!result.matched || !result.card) {
+        setError(result.message || "Unable to identify this Pokémon card.");
+        return;
+      }
+
+      // Display the recognized card using the existing CardResult.
+      setCards([result.card]);
+      setTotalCount(1);
+      setQuery(result.recognition?.name || result.card.name);
+    } catch (err) {
+      console.error("Card scanning failed:", err);
+
+      if (axios.isAxiosError(err)) {
+        const message = err.response?.data?.error;
+
+        setError(message || "Unable to scan the card. Please try again.");
+      } else {
+        setError("An unexpected error occurred while scanning.");
+      }
+    } finally {
+      setLoading(false);
+      setScanning(false);
     }
   }
 
@@ -501,8 +558,78 @@ export default function CardSearch() {
                 </>
               )}
             </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowScanOptions(!showScanOptions)}
+                title="Scan a Pokémon card"
+                className="flex h-full items-center justify-center rounded-xl border border-border px-4 text-text-primary transition hover:border-primary hover:text-primary"
+              >
+                <Camera size={20} />
+              </button>
+
+              {showScanOptions && (
+                <div className="absolute right-0 top-full z-20 mt-2 w-48 rounded-xl border border-border bg-surface p-2 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowScanOptions(false);
+                      cameraInputRef.current?.click();
+                    }}
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary transition hover:bg-background"
+                  >
+                    <Camera size={16} className="mr-2 inline" />
+                    Take a photo
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowScanOptions(false);
+                      uploadInputRef.current?.click();
+                    }}
+                    className="w-full rounded-lg px-3 py-2 text-left text-sm text-text-primary transition hover:bg-background"
+                  >
+                    <Search size={16} className="mr-2 inline" />
+                    Upload a photo
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </form>
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+
+            if (file) {
+              void handleScan(file);
+            }
+
+            event.target.value = "";
+          }}
+        />
+
+        <input
+          ref={uploadInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+
+            if (file) {
+              void handleScan(file);
+            }
+
+            event.target.value = "";
+          }}
+        />
       </section>
 
       {/* Error message */}
@@ -518,7 +645,9 @@ export default function CardSearch() {
         <div className="flex flex-col items-center justify-center gap-3 py-16">
           <Loader2 size={32} className="animate-spin text-primary" />
           <p className="text-sm text-text-secondary">
-            Searching for Pokémon cards...
+            {scanning
+              ? "Recognizing your Pokémon card..."
+              : "Searching for Pokémon cards..."}
           </p>
         </div>
       )}

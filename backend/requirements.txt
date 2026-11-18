@@ -7,3 +7,4 @@ djangorestframework
 psycopg[binary]
 requests
 Pillow
+cardcorpus-scanner @ git+https://github.com/cardcorpus/pokemon-card-scanner

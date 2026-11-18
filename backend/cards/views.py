@@ -2,6 +2,7 @@ import logging
 import requests
 import mimetypes
 import os
+import tempfile
 
 from django.http import FileResponse, HttpResponse
 from django.db import DatabaseError
@@ -14,7 +15,12 @@ from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.generics import ListAPIView
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 
+
+from cards.scanner import scan_card_image
 
 from .models import Card
 from .services import (
@@ -208,3 +214,175 @@ def card_image_api(request, card_id):
             {"error": "Unable to retrieve card image."},
             status=status.HTTP_502_BAD_GATEWAY,
         )
+
+
+class CardScanView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        image = request.FILES.get("image")
+
+        if not image:
+            return Response(
+                {"error": "Please upload an image."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if image.size > 10 * 1024 * 1024:
+            return Response(
+                {"error": "Image size must not exceed 10 MB."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        suffix = os.path.splitext(image.name)[1] or ".jpg"
+
+        try:
+            with tempfile.NamedTemporaryFile(
+                suffix=suffix,
+                delete=False
+            ) as temp_file:
+                for chunk in image.chunks():
+                    temp_file.write(chunk)
+
+                temp_path = temp_file.name
+
+            try:
+                result = scan_card_image(temp_path)
+            finally:
+                os.remove(temp_path)
+
+            # Collect all candidates from CardCorpus.
+            candidates = []
+
+            for detected_card in result.get("cards", []):
+                candidates.extend(
+                    detected_card.get("candidates", [])
+                )
+
+            if not candidates:
+                return Response({
+                    "matched": False,
+                    "message": "No Pokémon card could be recognized."
+                })
+
+            # Select the candidate with the highest similarity.
+            best_candidate = max(
+                candidates,
+                key=lambda candidate: candidate.get("sim", 0)
+            )
+
+            card_name = best_candidate.get("name") or ""
+            card_number = best_candidate.get("number") or ""
+            set_name = best_candidate.get("set_name") or ""
+
+            recognition = {
+                "name": card_name,
+                "set_name": set_name,
+                "number": card_number,
+                "language": best_candidate.get("language"),
+                "print": best_candidate.get("print"),
+                "similarity": best_candidate.get("sim"),
+                "picture": best_candidate.get("picture"),
+            }
+
+            # Step 1: Search the existing database.
+            if card_number and "/" not in card_number:
+                existing_card = Card.objects.filter(
+                    card_number__icontains=card_number,
+                ).first()
+            else:
+                existing_card = Card.objects.filter(
+                    name__icontains=card_name,
+                    card_number__icontains=card_number,
+                    set_name__icontains=set_name,
+                ).first()
+
+            if existing_card:
+                serializer = CardSerializer(existing_card)
+
+                return Response({
+                    "matched": True,
+                    "source": "database",
+                    "recognition": recognition,
+                    "card": serializer.data,
+                })
+
+            # Step 2: Build the PokéWallet search query.
+            query = " ".join(
+                value for value in [
+                    card_number,
+                    set_name,
+                ]
+                if value
+            )
+
+            # Step 3: Check the search cache first.
+            cached_search = get_cached_cards(query)
+
+            if cached_search is not None:
+                cards = list(cached_search.cards.all())
+            else:
+                # Step 4: Search PokéWallet.
+                search_result = search_cards(query)
+
+                matching_results = []
+
+                for item in search_result.get("results", []):
+                    card_info = item.get("card_info") or {}
+
+                    result_name = card_info.get("name") or ""
+                    result_number = card_info.get("card_number") or ""
+                    result_set_name = card_info.get("set_name") or ""
+
+                    # Match the recognized card.
+                    if (
+                        result_name.casefold() == card_name.casefold()
+                        and result_number.casefold() == card_number.casefold()
+                        and result_set_name.casefold() == set_name.casefold()
+                    ):
+                        matching_results.append(item)
+
+                if not matching_results:
+                    return Response({
+                        "matched": False,
+                        "source": "pokewallet",
+                        "recognition": recognition,
+                        "message": (
+                            "Card recognized, but no matching "
+                            "PokéWallet card was found."
+                        ),
+                    })
+
+                # Step 5: Save only the matching result.
+                cards = save_card_results({
+                    "results": matching_results
+                })
+
+                # Cache the matching card.
+                save_search_cache(query, cards)
+
+            # Step 6: Return the matched card.
+            if not cards:
+                return Response({
+                    "matched": False,
+                    "source": "pokewallet",
+                    "recognition": recognition,
+                    "message": "No matching card was found."
+                })
+
+            matched_card = cards[0]
+            serializer = CardSerializer(matched_card)
+
+            return Response({
+                "matched": True,
+                "source": "pokewallet",
+                "recognition": recognition,
+                "card": serializer.data,
+            })
+
+        except Exception as error:
+            return Response(
+                {"error": f"Card scanning failed: {str(error)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

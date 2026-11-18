@@ -6,20 +6,14 @@ from .views import (
     card_detail_api,
     card_image_api,
     CardListAPIView,
+    CardScanView,
 )
 
 urlpatterns = [
     path("", CardListAPIView.as_view(), name="card-list"),
     path("search/", search_cards_api, name="card-search"),
     path("<int:card_id>/", card_detail_api, name="card-detail"),
-    path(
-        "<int:card_id>/prices/",
-        card_price_history_api,
-        name="card-price-history",
-    ),
-    path(
-        "<int:card_id>/image/",
-        card_image_api,
-        name="card-image",
-    ),
+    path("<int:card_id>/prices/",card_price_history_api,name="card-price-history"),
+    path("<int:card_id>/image/",card_image_api,name="card-image"),
+    path("scan/", CardScanView.as_view(), name="card-scan"),
 ]

@@ -16,3 +16,37 @@ export async function searchCards(
 
   return response.data
 }
+
+
+export interface CardScanResponse {
+  matched: boolean;
+  source?: "database" | "pokewallet";
+  recognition?: {
+    name: string;
+    set_name: string;
+    number: string;
+    language: string | null;
+    print: string | null;
+    similarity: number;
+    picture: string | null;
+  };
+  card?: Card;
+  message?: string;
+}
+
+export async function scanCard(image: File): Promise<CardScanResponse> {
+  const formData = new FormData();
+  formData.append("image", image);
+
+  const response = await api.post<CardScanResponse>(
+    "/cards/scan/",
+    formData,
+    {
+      headers: {
+        "Content-Type": undefined,
+      },
+    }
+  );
+
+  return response.data;
+}
