@@ -212,3 +212,79 @@ def save_card_results(data):
         saved_cards.append(card)
 
     return saved_cards
+
+
+def refresh_card_price(card):
+    """
+    Fetch the latest TCGplayer prices for one existing card
+    and save them as new price history records.
+    """
+
+    query = " ".join(
+        value for value in [
+            card.name,
+            card.card_number,
+            card.set_id,
+        ]
+        if value
+    )
+
+    try:
+        data = search_cards(query)
+
+        # Find the exact card using its PokéWallet ID
+        matching_result = next(
+            (
+                result
+                for result in data.get("results", [])
+                if result.get("id") == card.pokewallet_id
+            ),
+            None
+        )
+
+        if not matching_result:
+            return False
+
+        tcgplayer = matching_result.get("tcgplayer") or {}
+        prices = tcgplayer.get("prices", [])
+
+        if not prices:
+            return False
+
+        # Save each returned price variant as a new history record
+        for price in prices:
+            CardPriceHistory.objects.create(
+                card=card,
+                provider="tcgplayer",
+                variant=price.get("sub_type_name", ""),
+                currency="USD",
+                low_price=to_decimal(price.get("low_price")),
+                mid_price=to_decimal(price.get("mid_price")),
+                high_price=to_decimal(price.get("high_price")),
+                market_price=to_decimal(price.get("market_price")),
+                direct_low_price=to_decimal(
+                    price.get("direct_low_price")
+                ),
+                source_updated_at=parse_source_datetime(
+                    price.get("updated_at")
+                ),
+            )
+
+        return True
+
+    except requests.RequestException:
+        import logging
+        logging.getLogger(__name__).warning(
+            "Unable to refresh price for %s",
+            card.name,
+            exc_info=True
+        )
+        return False
+
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception(
+            "Unexpected error refreshing price for %s",
+            card.name
+        )
+        return False

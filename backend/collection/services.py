@@ -2,10 +2,13 @@
 import logging
 import requests
 
+from decimal import Decimal
+from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import ExchangeRate
+from .models import CollectionItem, ExchangeRate, PortfolioSnapshot
+
 
 logger = logging.getLogger(__name__)
 
@@ -68,3 +71,63 @@ def get_usd_to_myr_rate():
             return previous_rate
 
         raise
+
+def create_daily_portfolio_snapshot(user):
+    today = timezone.localdate()
+
+    # Check whether today's snapshot already exists
+    existing_snapshot = PortfolioSnapshot.objects.filter(
+        user=user,
+        snapshot_date=today
+    ).first()
+
+    if existing_snapshot:
+        return existing_snapshot
+
+    # Retrieve the user's collection
+    collection_items = CollectionItem.objects.filter(
+        user=user
+    ).select_related("card").prefetch_related(
+        "card__price_history"
+    )
+
+    collection_value_usd = Decimal("0.00")
+
+    for item in collection_items:
+        # Get the latest TCGplayer market price
+        latest_price = (
+            item.card.price_history
+            .filter(provider="tcgplayer")
+            .order_by("-fetched_at")
+            .first()
+        )
+
+        if latest_price and latest_price.market_price is not None:
+            collection_value_usd += (
+                latest_price.market_price * item.quantity
+            )
+
+    # Retrieve the latest USD/MYR exchange rate
+    exchange_rate = ExchangeRate.objects.filter(
+        base_currency="USD",
+        target_currency="MYR"
+    ).order_by("-rate_date").first()
+
+    collection_value_myr = None
+
+    if exchange_rate:
+        collection_value_myr = (
+            collection_value_usd * exchange_rate.rate
+        )
+
+    # Save today's snapshot
+    snapshot, created = PortfolioSnapshot.objects.get_or_create(
+        user=user,
+        snapshot_date=today,
+        defaults={
+            "collection_value_usd": collection_value_usd,
+            "collection_value_myr": collection_value_myr,
+        }
+    )
+
+    return snapshot

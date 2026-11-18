@@ -18,6 +18,14 @@ echo.
 echo Checking today's USD/MYR exchange rate...
 "%PYTHON%" manage.py update_exchange_rate
 
+echo.
+echo Creating daily portfolio snapshots...
+"%PYTHON%" manage.py update_portfolio_snapshots
+
+if errorlevel 1 (
+    echo WARNING: Portfolio snapshot creation failed.
+)
+
 if errorlevel 1 (
     echo WARNING: Exchange rate update failed.
     echo Continuing with the existing database rate...

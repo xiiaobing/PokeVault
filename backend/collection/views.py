@@ -10,10 +10,14 @@ from rest_framework.decorators import api_view, permission_classes
 
 
 import requests
-from .models import CollectionItem, ExchangeRate, WatchlistItem
-from .serializers import CollectionItemSerializer, RegisterSerializer, WatchlistItemSerializer
+from .models import CollectionItem, ExchangeRate, WatchlistItem, PortfolioSnapshot
+from .serializers import CollectionItemSerializer, RegisterSerializer, WatchlistItemSerializer, PortfolioSnapshotSerializer
 from django.contrib.auth import authenticate
 from django.core.cache import cache
+from decimal import Decimal
+from django.db.models import Prefetch
+
+from cards.models import CardPriceHistory
 
 class CollectionItemViewSet(viewsets.ModelViewSet):
     serializer_class = CollectionItemSerializer
@@ -139,3 +143,137 @@ def exchange_rate_api(request):
         "date": exchange_rate.rate_date,
         "fetched_at": exchange_rate.fetched_at,
     })
+
+class DashboardSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        # Retrieve the user's collection and latest cached TCGplayer prices
+        collection_items = (
+            CollectionItem.objects
+            .filter(user=user)
+            .select_related("card")
+            .prefetch_related(
+                Prefetch(
+                    "card__price_history",
+                    queryset=CardPriceHistory.objects.filter(
+                        provider="tcgplayer"
+                    ).order_by("-fetched_at"),
+                    to_attr="dashboard_price_history"
+                )
+            )
+        )
+
+        total_cards = 0
+        collection_value_usd = Decimal("0.00")
+        card_summary = {}
+
+        for item in collection_items:
+            card = item.card
+            quantity = item.quantity
+
+            total_cards += quantity
+
+            # Get the latest cached market price
+            prices = card.dashboard_price_history
+            market_price = (
+                prices[0].market_price
+                if prices else None
+            )
+
+            if market_price is None:
+                continue
+
+            market_value = market_price * quantity
+            collection_value_usd += market_value
+
+            # Combine different conditions of the same card
+            if card.id not in card_summary:
+                card_summary[card.id] = {
+                    "id": card.id,
+                    "name": card.name,
+                    "set_name": card.set_name,
+                    "card_number": card.card_number,
+                    "image_url": f"/cards/{card.id}/image/",
+                    "market_price": str(market_price),
+                    "quantity": 0,
+                    "market_value": Decimal("0.00"),
+                }
+
+            card_summary[card.id]["quantity"] += quantity
+            card_summary[card.id]["market_value"] += market_value
+
+        # Get the four most valuable cards
+        top_cards = sorted(
+            card_summary.values(),
+            key=lambda card: card["market_value"],
+            reverse=True
+        )[:4]
+
+        # Convert Decimal values to strings for JSON
+        for card in top_cards:
+            card["market_value"] = str(card["market_value"])
+
+        # Count distinct sets in the user's collection
+        tracked_sets = (
+            CollectionItem.objects
+            .filter(user=user)
+            .exclude(card__set_id__isnull=True)
+            .exclude(card__set_id="")
+            .values("card__set_id")
+            .distinct()
+            .count()
+        )
+
+        # Count watchlist items
+        watchlist_count = WatchlistItem.objects.filter(
+            user=user
+        ).count()
+
+        # Retrieve the latest USD to MYR exchange rate
+        exchange_rate = (
+            ExchangeRate.objects
+            .filter(
+                base_currency="USD",
+                target_currency="MYR"
+            )
+            .order_by("-rate_date")
+            .first()
+        )
+
+        collection_value_myr = None
+
+        if exchange_rate:
+            collection_value_myr = (
+                collection_value_usd * exchange_rate.rate
+            )
+
+        return Response({
+            "collection_value_usd": str(collection_value_usd),
+            "collection_value_myr": (
+                str(collection_value_myr)
+                if collection_value_myr is not None
+                else None
+            ),
+            "total_cards": total_cards,
+            "watchlist_count": watchlist_count,
+            "tracked_sets": tracked_sets,
+            "top_cards": top_cards,
+        })
+
+class PortfolioHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        snapshots = PortfolioSnapshot.objects.filter(
+            user=request.user
+        ).order_by("snapshot_date")
+
+        serializer = PortfolioSnapshotSerializer(
+            snapshots,
+            many=True
+        )
+
+        return Response(serializer.data)

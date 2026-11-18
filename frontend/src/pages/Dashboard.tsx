@@ -1,10 +1,13 @@
+import { useEffect, useState } from "react";
 
+import { CreditCard, Eye, Layers, TrendingUp } from "lucide-react";
+
+import StatCard from "../components/StatCard";
+import AuthenticatedImage from "../components/AuthenticatedImage";
 import {
-  CreditCard,
-  Eye,
-  Layers,
-  TrendingUp,
-} from 'lucide-react'
+  getDashboardSummary,
+  type DashboardSummary
+} from "../services/dashboardService";
 
 import {
   Area,
@@ -13,53 +16,72 @@ import {
   ResponsiveContainer,
   Tooltip,
   XAxis,
-  YAxis,
-} from 'recharts'
+  YAxis
+} from "recharts";
 
-import StatCard from '../components/StatCard'
-
-const portfolioData = [
-  { month: 'Jan', value: 650 },
-  { month: 'Feb', value: 720 },
-  { month: 'Mar', value: 680 },
-  { month: 'Apr', value: 850 },
-  { month: 'May', value: 920 },
-  { month: 'Jun', value: 1050 },
-  { month: 'Jul', value: 1280 },
-]
-
-const popularCards = [
-  {
-    name: 'Charizard',
-    set: 'Base Set',
-    number: '4/102',
-    price: '$350.00',
-    image: 'https://images.pokemontcg.io/base1/4.png',
-  },
-  {
-    name: 'Blastoise',
-    set: 'Base Set',
-    number: '2/102',
-    price: '$125.50',
-    image: 'https://images.pokemontcg.io/base1/2.png',
-  },
-  {
-    name: 'Venusaur',
-    set: 'Base Set',
-    number: '15/102',
-    price: '$95.00',
-    image: 'https://images.pokemontcg.io/base1/15.png',
-  },
-  {
-    name: 'Pikachu',
-    set: 'Base Set',
-    number: '58/102',
-    price: '$42.80',
-    image: 'https://images.pokemontcg.io/base1/58.png',
-  },
-]
+import {
+  getPortfolioHistory,
+  type PortfolioSnapshot
+} from "../services/portfolioService";
 
 export default function Dashboard() {
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [portfolioHistory, setPortfolioHistory] = useState<PortfolioSnapshot[]>(
+    []
+  );
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        const data = await getDashboardSummary();
+        setSummary(data);
+        const history = await getPortfolioHistory();
+        setPortfolioHistory(history);
+      } catch (err) {
+        console.error("Failed to load dashboard:", err);
+        setError("Unable to load dashboard data. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboard();
+  }, []);
+
+  const formatCurrency = (value: string | null, currency: string) => {
+    if (value === null) return "Unavailable";
+
+    return new Intl.NumberFormat("en-MY", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(Number(value));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[300px] items-center justify-center">
+        <p className="text-text-secondary">Loading dashboard...</p>
+      </div>
+    );
+  }
+
+  if (error || !summary) {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-6">
+        <p className="text-red-400">
+          {error || "Dashboard data is unavailable."}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* Welcome section */}
@@ -68,159 +90,181 @@ export default function Dashboard() {
           <h2 className="text-2xl font-bold text-text-primary">
             Welcome back, Trainer!
           </h2>
+
           <p className="mt-1 text-sm text-text-secondary">
             Here's what's happening with your collection.
           </p>
         </div>
-
-        <button className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary-hover">
-          + Add New Card
-        </button>
       </section>
 
       {/* Statistics */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Collection Value"
-          value="$1,280.00"
-          change="+12.8% from last month"
+          value={formatCurrency(summary.collection_value_myr, "MYR")}
+          change="Estimated market value"
           icon={CreditCard}
         />
 
         <StatCard
           title="Total Cards"
-          value="48"
+          value={summary.total_cards.toLocaleString()}
           change="Cards in your collection"
           icon={Layers}
         />
 
         <StatCard
           title="Watchlist"
-          value="8"
+          value={summary.watchlist_count.toLocaleString()}
           change="Cards being monitored"
           icon={Eye}
         />
 
         <StatCard
           title="Tracked Sets"
-          value="12"
+          value={summary.tracked_sets.toLocaleString()}
           change="Sets you're collecting"
           icon={TrendingUp}
         />
       </section>
 
       {/* Portfolio chart */}
+
+      {/* Portfolio chart */}
       <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
-        <div className="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-          <div>
-            <h3 className="font-semibold text-text-primary">
-              Portfolio Overview
-            </h3>
-            <p className="mt-1 text-sm text-text-secondary">
-              Your collection value over time
+        <div className="mb-6">
+          <h3 className="font-semibold text-text-primary">
+            Portfolio Overview
+          </h3>
+
+          <p className="mt-1 text-sm text-text-secondary">
+            Your collection value over time
+          </p>
+        </div>
+
+        {portfolioHistory.length === 0 ? (
+          <div className="flex h-72 items-center justify-center text-center">
+            <p className="text-sm text-text-secondary">
+              No portfolio history available yet.
             </p>
           </div>
+        ) : (
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={portfolioHistory.map((snapshot) => ({
+                  date: snapshot.snapshot_date,
+                  value: Number(snapshot.collection_value_myr ?? 0)
+                }))}
+              >
+                <defs>
+                  <linearGradient
+                    id="portfolioGradient"
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor="#a855f7" stopOpacity={0.35} />
+                    <stop offset="100%" stopColor="#a855f7" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
 
-          <div className="flex items-center gap-2 text-sm text-green-400">
-            <TrendingUp size={16} />
-            +12.8%
+                <CartesianGrid stroke="#29283d" strokeDasharray="3 3" />
+
+                <XAxis
+                  dataKey="date"
+                  stroke="#a1a1aa"
+                  tickLine={false}
+                  axisLine={false}
+                />
+
+                <YAxis
+                  stroke="#a1a1aa"
+                  tickLine={false}
+                  axisLine={false}
+                  tickFormatter={(value) => `RM${value}`}
+                />
+
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#131321",
+                    border: "1px solid #29283d",
+                    borderRadius: "12px",
+                    color: "#f5f3ff"
+                  }}
+                  formatter={(value) => [
+                    `RM ${Number(value).toFixed(2)}`,
+                    "Collection Value"
+                  ]}
+                />
+
+                <Area
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#a855f7"
+                  strokeWidth={3}
+                  fill="url(#portfolioGradient)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-        </div>
-
-        <div className="h-72 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={portfolioData}>
-              <defs>
-                <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#a855f7" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="#a855f7" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-
-              <CartesianGrid stroke="#29283d" strokeDasharray="3 3" />
-
-              <XAxis
-                dataKey="month"
-                stroke="#a1a1aa"
-                tickLine={false}
-                axisLine={false}
-              />
-
-              <YAxis
-                stroke="#a1a1aa"
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(value) => `$${value}`}
-              />
-
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#131321',
-                  border: '1px solid #29283d',
-                  borderRadius: '12px',
-                  color: '#f5f3ff',
-                }}
-                formatter={(value) => [`$${value}`, 'Collection Value']}
-              />
-
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="#a855f7"
-                strokeWidth={3}
-                fill="url(#portfolioGradient)"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+        )}
       </section>
 
-      {/* Popular cards */}
+      {/* Most valuable cards */}
       <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-text-primary">
-              Popular Cards
-            </h3>
-            <p className="mt-1 text-sm text-text-secondary">
-              Featured cards in your collection
+        <div className="mb-6">
+          <h3 className="font-semibold text-text-primary">
+            Most Valuable Cards
+          </h3>
+
+          <p className="mt-1 text-sm text-text-secondary">
+            Your four most valuable cards based on current market prices
+          </p>
+        </div>
+
+        {summary.top_cards.length === 0 ? (
+          <div className="py-12 text-center">
+            <p className="text-text-secondary">
+              No cards with available market prices found in your collection.
             </p>
           </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {summary.top_cards.map((card) => (
+              <div
+                key={card.id}
+                className="rounded-xl border border-border bg-background p-3 transition hover:border-primary/50"
+              >
+                <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-surface-light">
+                  <AuthenticatedImage
+                    imageUrl={card.image_url}
+                    alt={card.name}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
 
-          <button className="text-sm font-medium text-primary hover:text-primary-hover">
-            View All
-          </button>
-        </div>
+                <h4 className="mt-3 font-semibold text-text-primary">
+                  {card.name}
+                </h4>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {popularCards.map((card) => (
-            <div
-              key={card.name}
-              className="rounded-xl border border-border bg-background p-3 transition hover:border-primary/50"
-            >
-              <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg bg-surface-light">
-                <img
-                  src={card.image}
-                  alt={card.name}
-                  className="h-full w-full object-contain"
-                />
+                <p className="text-xs text-text-secondary">
+                  {card.set_name} · {card.card_number}
+                </p>
+
+                <p className="mt-2 font-semibold text-primary">
+                  {formatCurrency(card.market_value, "USD")}
+                </p>
+
+                <p className="mt-1 text-xs text-text-secondary">
+                  Quantity: {card.quantity}
+                </p>
               </div>
-
-              <h4 className="mt-3 font-semibold text-text-primary">
-                {card.name}
-              </h4>
-
-              <p className="text-xs text-text-secondary">
-                {card.set} · {card.number}
-              </p>
-
-              <p className="mt-2 font-semibold text-primary">
-                {card.price}
-              </p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
-  )
+  );
 }

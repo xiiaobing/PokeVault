@@ -1,6 +1,6 @@
 
 from rest_framework import serializers
-from .models import CollectionItem, WatchlistItem
+from .models import CollectionItem, WatchlistItem, PortfolioSnapshot
 from django.contrib.auth.models import User
 
 
@@ -116,3 +116,12 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data["password"]
         )
         return user
+
+class PortfolioSnapshotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PortfolioSnapshot
+        fields = [
+            "snapshot_date",
+            "collection_value_usd",
+            "collection_value_myr",
+        ]

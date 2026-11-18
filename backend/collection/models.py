@@ -100,3 +100,39 @@ class WatchlistItem(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.card.name}"
+
+
+class PortfolioSnapshot(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="portfolio_snapshots"
+    )
+
+    snapshot_date = models.DateField()
+
+    collection_value_usd = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=0
+    )
+
+    collection_value_myr = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        null=True,
+        blank=True
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "snapshot_date")
+        ordering = ["snapshot_date"]
+
+    def __str__(self):
+        return (
+            f"{self.user.username} - "
+            f"{self.snapshot_date} - "
+            f"USD {self.collection_value_usd}"
+        )
