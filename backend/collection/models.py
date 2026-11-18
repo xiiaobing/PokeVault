@@ -55,3 +55,25 @@ class CollectionItem(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.card.name} x{self.quantity}"
+
+class ExchangeRate(models.Model):
+    base_currency = models.CharField(max_length=3)
+    target_currency = models.CharField(max_length=3)
+
+    rate = models.DecimalField(
+        max_digits=12,
+        decimal_places=6
+    )
+
+    rate_date = models.DateField()
+    fetched_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("base_currency", "target_currency", "rate_date")
+        ordering = ["-rate_date"]
+
+    def __str__(self):
+        return (
+            f"1 {self.base_currency} = {self.rate} "
+            f"{self.target_currency} ({self.rate_date})"
+        )

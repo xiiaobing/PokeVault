@@ -6,10 +6,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.authtoken.models import Token
+from rest_framework.decorators import api_view, permission_classes
 
-from .models import CollectionItem
+
+import requests
+from .models import CollectionItem, ExchangeRate
 from .serializers import CollectionItemSerializer, RegisterSerializer
 from django.contrib.auth import authenticate
+from django.core.cache import cache
 
 class CollectionItemViewSet(viewsets.ModelViewSet):
     serializer_class = CollectionItemSerializer
@@ -73,3 +77,30 @@ class LoginView(APIView):
         return Response({
             "error": "Invalid username or password."
         }, status=status.HTTP_401_UNAUTHORIZED)
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def exchange_rate_api(request):
+    exchange_rate = (
+        ExchangeRate.objects
+        .filter(
+            base_currency="USD",
+            target_currency="MYR"
+        )
+        .order_by("-rate_date")
+        .first()
+    )
+
+    if not exchange_rate:
+        return Response(
+            {"error": "Exchange rate is not available."},
+            status=503
+        )
+
+    return Response({
+        "base": exchange_rate.base_currency,
+        "quote": exchange_rate.target_currency,
+        "rate": str(exchange_rate.rate),
+        "date": exchange_rate.rate_date,
+        "fetched_at": exchange_rate.fetched_at,
+    })

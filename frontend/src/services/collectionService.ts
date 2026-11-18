@@ -6,6 +6,8 @@ export interface CollectionItem {
   card_name: string
   card_set: string
   card_number: string
+  card_image_url: string
+  latest_market_price: number | null
   quantity: number
   condition: 'NM' | 'LP' | 'MP' | 'HP' | 'DMG'
   purchase_price: string | null

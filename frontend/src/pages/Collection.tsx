@@ -1,61 +1,225 @@
-import { useEffect, useState } from 'react'
-import { getCollection } from '../services/collectionService'
-import type { CollectionItem } from '../services/collectionService'
+import { useEffect, useState } from "react";
+import { getCollection } from "../services/collectionService";
+import { getExchangeRate } from "../services/exchangeRateService";
+import type { CollectionItem } from "../services/collectionService";
+import AuthenticatedImage from "../components/AuthenticatedImage";
+
+function formatRM(value: number) {
+  return `RM ${value.toLocaleString("en-MY", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+}
+
+function formatUSD(value: number) {
+  return `US$ ${value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
+}
 
 export default function Collection() {
-  const [items, setItems] = useState<CollectionItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [items, setItems] = useState<CollectionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [usdToMyr, setUsdToMyr] = useState<number>(0);
+  const [exchangeRateDate, setExchangeRateDate] = useState("");
 
   useEffect(() => {
     const fetchCollection = async () => {
       try {
-        const data = await getCollection()
-        setItems(data)
+        const data = await getCollection();
+        setItems(data);
       } catch (err) {
-        console.error(err)
-        setError('Unable to load your collection.')
+        console.error(err);
+        setError("Unable to load your collection.");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchCollection()
-  }, [])
+    const fetchExchangeRate = async () => {
+      try {
+        const data = await getExchangeRate();
+        setUsdToMyr(Number(data.rate));
+        setExchangeRateDate(data.date);
+      } catch (error) {
+        console.error("Failed to fetch exchange rate:", error);
+      }
+    };
+
+    fetchCollection();
+    fetchExchangeRate();
+  }, []);
+
+  const totalCards = items.reduce((total, item) => total + item.quantity, 0);
+
+  const totalMarketValueUSD = items.reduce(
+    (total, item) =>
+      total + (Number(item.latest_market_price) || 0) * item.quantity,
+    0
+  );
+
+  const totalMarketValueRM =
+    usdToMyr !== null ? totalMarketValueUSD * usdToMyr : null;
 
   return (
     <div className="space-y-6">
+      {/* Page heading */}
       <div>
         <h2 className="text-2xl font-bold">My Collection</h2>
-        <p className="mt-2 text-text-secondary">
-          Manage your Pokémon card collection.
+        <p className="mt-1 text-sm text-text-secondary">
+          Manage and track the value of your Pokémon cards.
         </p>
       </div>
-
-      {loading ? (
-        <p>Loading your collection...</p>
-      ) : error ? (
-        <p className="text-red-500">{error}</p>
-      ) : items.length === 0 ? (
-        <p className="text-text-secondary">Your collection is empty.</p>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {items.map((item) => (
-            <div key={item.id} className="rounded-xl border border-border bg-surface p-4">
-              <h3 className="font-semibold">{item.card_name}</h3>
-              <p className="text-sm text-text-secondary">{item.card_set}</p>
-              <p className="mt-3 text-sm">Card Number: {item.card_number}</p>
-              <p className="text-sm">Quantity: {item.quantity}</p>
-              <p className="text-sm">Condition: {item.condition}</p>
-              <p className="text-sm">
-                Purchase Price: {item.purchase_price
-                  ? `RM ${item.purchase_price}`
-                  : 'Not provided'}
-              </p>
-            </div>
-          ))}
+      {usdToMyr > 0 && (
+        <div className="mb-4 flex items-center justify-end">
+          <div className="flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-1.5 dark:bg-gray-800">
+            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+              1 USD = RM {usdToMyr.toFixed(4)}
+            </span>
+          </div>
         </div>
       )}
+
+      {loading ? (
+        <p className="text-text-secondary">Loading your collection...</p>
+      ) : error ? (
+        <p className="text-red-500">{error}</p>
+      ) : (
+        <>
+          {/* Collection statistics */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-border bg-surface p-5">
+              <p className="text-sm text-text-secondary">Total Market Value</p>
+
+              <h3 className="mt-2 text-2xl font-bold text-emerald-500">
+                {totalMarketValueRM !== null
+                  ? formatRM(totalMarketValueRM)
+                  : "Loading exchange rate..."}
+              </h3>
+
+              <p className="mt-1 text-xs text-text-secondary">
+                {formatUSD(totalMarketValueUSD)} · Based on TCGplayer prices
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-surface p-5">
+              <p className="text-sm text-text-secondary">Total Cards</p>
+
+              <h3 className="mt-2 text-2xl font-bold">{totalCards}</h3>
+
+              <p className="mt-1 text-xs text-text-secondary">
+                {items.length} unique card{items.length !== 1 ? "s" : ""} in
+                your collection
+              </p>
+            </div>
+          </div>
+
+          {/* Collection cards */}
+          <div>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Your Cards</h3>
+
+              <span className="text-sm text-text-secondary">
+                {items.length} items
+              </span>
+            </div>
+
+            {items.length === 0 ? (
+              <div className="rounded-xl border border-border bg-surface p-8 text-center">
+                <p className="text-text-secondary">Your collection is empty.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                {items.map((item) => {
+                  const marketPrice = Number(item.latest_market_price) || 0;
+
+                  const marketPriceRM =
+                    usdToMyr !== null ? marketPrice * usdToMyr : null;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="overflow-hidden rounded-xl border border-border bg-surface transition-all duration-200 hover:-translate-y-1 hover:shadow-lg"
+                    >
+                      {/* Card image */}
+                      <div className="bg-background p-2">
+                        <AuthenticatedImage
+                          imageUrl={item.card_image_url}
+                          alt={item.card_name}
+                          className="h-40 w-full rounded-lg object-contain sm:h-48"
+                        />
+                      </div>
+
+                      {/* Card information */}
+                      <div className="space-y-2 p-3">
+                        <div>
+                          <h4 className="line-clamp-2 text-sm font-semibold">
+                            {item.card_name}
+                          </h4>
+
+                          <p className="mt-1 line-clamp-1 text-xs text-text-secondary">
+                            {item.card_set}
+                          </p>
+
+                          <p className="text-xs text-text-secondary">
+                            {item.card_number}
+                          </p>
+                        </div>
+
+                        {/* Market price */}
+                        <div className="border-t border-border pt-2">
+                          <p className="text-[11px] text-text-secondary">
+                            Market Price
+                          </p>
+
+                          {item.latest_market_price !== null ? (
+                            <>
+                              <p className="text-base font-bold text-emerald-500">
+                                {marketPriceRM !== null
+                                  ? formatRM(marketPriceRM)
+                                  : "Exchange rate unavailable"}
+                              </p>
+
+                              <p className="text-[10px] text-text-secondary">
+                                {formatUSD(marketPrice)}
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-xs text-text-secondary">
+                              Price unavailable
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Quantity and condition */}
+                        <div className="flex items-center justify-between gap-1 text-xs">
+                          <span className="rounded-md bg-background px-2 py-1">
+                            Qty: {item.quantity}
+                          </span>
+
+                          <span className="rounded-md bg-background px-2 py-1">
+                            {item.condition}
+                          </span>
+                        </div>
+
+                        {/* Purchase price */}
+                        <div className="text-xs text-text-secondary">
+                          Purchase:{" "}
+                          {item.purchase_price
+                            ? formatRM(Number(item.purchase_price))
+                            : "Not provided"}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
-  )
+  );
 }

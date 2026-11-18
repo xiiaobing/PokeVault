@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Search, Loader2, AlertCircle, Sparkles } from "lucide-react";
 import axios from "axios";
@@ -7,6 +7,7 @@ import AuthenticatedImage from "../components/AuthenticatedImage";
 import { searchCards } from "../services/cardService";
 import { addCollectionItem } from "../services/collectionService";
 import type { Card, CardPriceHistory } from "../types/card";
+import { getExchangeRate } from "../services/exchangeRateService";
 
 function getLatestPrices(priceHistory: CardPriceHistory[]): CardPriceHistory[] {
   const latestPrices = new Map<string, CardPriceHistory>();
@@ -52,7 +53,13 @@ function formatPrice(value: string | null, currency: string) {
   }).format(Number(value));
 }
 
-function CardResult({ card }: { card: Card }) {
+function CardResult({
+  card,
+  usdToMyr
+}: {
+  card: Card;
+  usdToMyr: number | null;
+}) {
   const latestPrices = getLatestPrices(card.price_history).filter((price) => {
     const displayPrice = getDisplayPrice(price);
     return displayPrice.value !== null && Number(displayPrice.value) > 0;
@@ -271,6 +278,15 @@ function CardResult({ card }: { card: Card }) {
                   <p className="text-base font-bold text-primary">
                     {formatPrice(displayPrice.value, price.currency)}
                   </p>
+
+                  {price.currency.toUpperCase() === "USD" &&
+                    displayPrice.value !== null &&
+                    usdToMyr !== null && (
+                      <p className="mt-1 text-sm font-semibold text-green-600 dark:text-green-400">
+                        ≈ RM{" "}
+                        {(Number(displayPrice.value) * usdToMyr).toFixed(2)}
+                      </p>
+                    )}
                 </div>
               );
             })}
@@ -287,11 +303,28 @@ function CardResult({ card }: { card: Card }) {
 
 export default function CardSearch() {
   const [query, setQuery] = useState("");
+  const [usdToMyr, setUsdToMyr] = useState<number | null>(null);
+  const [exchangeRateDate, setExchangeRateDate] = useState("");
   const [cards, setCards] = useState<Card[]>([]);
   const [totalCount, setTotalCount] = useState(0);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      try {
+        const data = await getExchangeRate();
+
+        setUsdToMyr(Number(data.rate));
+        setExchangeRateDate(data.date);
+      } catch (error) {
+        console.error("Failed to fetch exchange rate:", error);
+      }
+    };
+
+    fetchExchangeRate();
+  }, []);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -352,6 +385,16 @@ export default function CardSearch() {
           Search for Pokémon cards and compare prices across different
           marketplaces.
         </p>
+
+        {usdToMyr !== null && (
+          <p className="mt-2 text-xs text-text-secondary">
+            Today's USD/MYR rate:{" "}
+            <span className="font-semibold text-text-primary">
+              1 USD = RM {usdToMyr.toFixed(4)}
+            </span>
+            {exchangeRateDate && ` · ${exchangeRateDate}`}
+          </p>
+        )}
       </section>
 
       {/* Search form */}
@@ -435,7 +478,7 @@ export default function CardSearch() {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {cards.map((card) => (
-              <CardResult key={card.id} card={card} />
+              <CardResult key={card.id} card={card} usdToMyr={usdToMyr} />
             ))}
           </div>
         </section>
