@@ -430,6 +430,7 @@ export default function CardSearch() {
       }
     } finally {
       setLoading(false);
+      setScanning(false);
     }
   }
 
@@ -466,7 +467,7 @@ export default function CardSearch() {
       console.error("Card scanning failed:", err);
 
       if (axios.isAxiosError(err)) {
-        const message = err.response?.data?.error;
+        const message = err.response?.data?.error || err.response?.data?.detail;
 
         setError(message || "Unable to scan the card. Please try again.");
       } else {
