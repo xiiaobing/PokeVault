@@ -1,3 +1,4 @@
+import os
 from cardcorpus_scanner import Scanner
 
 _scanner = None
@@ -11,7 +12,10 @@ def get_scanner():
 
     if _scanner is None:
         print("Loading CardCorpus Scanner...")
+        print("Process ID:", os.getpid())
+
         _scanner = Scanner.load()
+
         print("CardCorpus Scanner loaded successfully!")
 
     return _scanner
