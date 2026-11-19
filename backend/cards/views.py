@@ -235,6 +235,7 @@ class CardScanView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        print("Image received:", image is not None)
         suffix = os.path.splitext(image.name)[1] or ".jpg"
 
         try:
@@ -286,7 +287,15 @@ class CardScanView(APIView):
                 "picture": best_candidate.get("picture"),
             }
 
+            print(f"CardCorpus result: {card_name} {card_number} {set_name}")
+
             # Step 1: Search the existing database.
+            print("\n========== CARD SOURCE CHECK ==========")
+            print(f"Recognized card: {card_name}")
+            print(f"Card number: {card_number}")
+            print(f"Set: {set_name}")
+            print("Checking local database...")
+
             if card_number and "/" not in card_number:
                 existing_card = Card.objects.filter(
                     card_number__icontains=card_number,
@@ -299,6 +308,11 @@ class CardScanView(APIView):
                 ).first()
 
             if existing_card:
+                print("SOURCE: DATABASE")
+                print(f"Retrieved card: {existing_card.name}")
+                print(f"Database ID: {existing_card.id}")
+                print("=======================================\n")
+
                 serializer = CardSerializer(existing_card)
 
                 return Response({
@@ -308,23 +322,57 @@ class CardScanView(APIView):
                     "card": serializer.data,
                 })
 
+            print("DATABASE: No matching card found.")
+            print("Proceeding to PokéWallet search...")
+
             # Step 2: Build the PokéWallet search query.
-            query = " ".join(
-                value for value in [
-                    card_number,
-                    set_name,
-                ]
-                if value
-            )
+            if card_number and "/" not in card_number:
+                query = " ".join(
+                    value for value in [
+                        card_number,
+                    ]
+                    if value
+                )
+            else:
+                query = " ".join(
+                    value for value in [
+                        card_number,
+                        set_name,
+                    ]
+                    if value
+                )
+
+            print(f"PokéWallet query: {query}")
 
             # Step 3: Check the search cache first.
+            print("\nChecking local search cache...")
+
             cached_search = get_cached_cards(query)
 
             if cached_search is not None:
                 cards = list(cached_search.cards.all())
+
+                if cards:
+                    print("SOURCE: CACHE")
+                    print(f"Retrieved {len(cards)} card(s) from cache.")
+
+                    for card in cards:
+                        print(f"  - {card.name} ({card.card_number})")
+                else:
+                    print("CACHE: No cards found in cached search.")
+
             else:
-                # Step 4: Search PokéWallet.
+                print("CACHE: No cached search found.")
+                print("SOURCE: POKÉWALLET API")
+                print(f"Sending query: {query}")
+
                 search_result = search_cards(query)
+
+                print(
+                    "PokéWallet returned:",
+                    len(search_result.get("results", [])),
+                    "result(s)"
+                )
 
                 matching_results = []
 
@@ -335,15 +383,18 @@ class CardScanView(APIView):
                     result_number = card_info.get("card_number") or ""
                     result_set_name = card_info.get("set_name") or ""
 
-                    # Match the recognized card.
                     if (
-                        result_name.casefold() == card_name.casefold()
+                        card_name.casefold() in result_name.casefold()
                         and result_number.casefold() == card_number.casefold()
-                        and result_set_name.casefold() == set_name.casefold()
+                        and set_name.casefold() in result_set_name.casefold()
                     ):
                         matching_results.append(item)
 
                 if not matching_results:
+                    print("SOURCE: NOT FOUND")
+                    print("No matching card found in PokéWallet.")
+                    print("=======================================\n")
+
                     return Response({
                         "matched": False,
                         "source": "pokewallet",
@@ -354,16 +405,26 @@ class CardScanView(APIView):
                         ),
                     })
 
-                # Step 5: Save only the matching result.
+                print(
+                    f"POKÉWALLET: Found {len(matching_results)} matching card(s)."
+                )
+
                 cards = save_card_results({
                     "results": matching_results
                 })
 
-                # Cache the matching card.
+                print(f"Saved {len(cards)} card(s) to database.")
+
                 save_search_cache(query, cards)
 
-            # Step 6: Return the matched card.
+                print("Search cache updated.")
+
+            # Step 4: Return the matched card.
             if not cards:
+                print("SOURCE: NOT FOUND")
+                print("No matching card available.")
+                print("=======================================\n")
+
                 return Response({
                     "matched": False,
                     "source": "pokewallet",
@@ -372,11 +433,15 @@ class CardScanView(APIView):
                 })
 
             matched_card = cards[0]
+
+            print(f"FINAL CARD: {matched_card.name}")
+            print("=======================================\n")
+
             serializer = CardSerializer(matched_card)
 
             return Response({
                 "matched": True,
-                "source": "pokewallet",
+                "source": "cache" if cached_search is not None else "pokewallet",
                 "recognition": recognition,
                 "card": serializer.data,
             })
