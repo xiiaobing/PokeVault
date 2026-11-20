@@ -1,11 +1,10 @@
-
 import { useEffect, useState } from "react";
 import { Bookmark, Trash2, Loader2, RefreshCw } from "lucide-react";
 
 import AuthenticatedImage from "../components/AuthenticatedImage";
 import {
   getWatchlist,
-  removeFromWatchlist,
+  removeFromWatchlist
 } from "../services/watchlistService";
 import type { WatchlistItem } from "../services/watchlistService";
 import { getExchangeRate } from "../services/exchangeRateService";
@@ -17,6 +16,7 @@ export default function Watchlist() {
   const [loading, setLoading] = useState(true);
   const [removingId, setRemovingId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [sortBy, setSortBy] = useState("name_asc");
 
   const fetchWatchlist = async () => {
     try {
@@ -55,9 +55,7 @@ export default function Watchlist() {
 
       await removeFromWatchlist(id);
 
-      setItems((previous) =>
-        previous.filter((item) => item.id !== id)
-      );
+      setItems((previous) => previous.filter((item) => item.id !== id));
     } catch (err) {
       console.error("Failed to remove watchlist item:", err);
       setError("Unable to remove card. Please try again.");
@@ -67,19 +65,50 @@ export default function Watchlist() {
   };
 
   const totalValueUSD = items.reduce(
-    (total, item) =>
-      total + Number(item.latest_market_price ?? 0),
+    (total, item) => total + Number(item.latest_market_price ?? 0),
     0
   );
 
-  const totalValueMYR =
-    usdToMyr !== null ? totalValueUSD * usdToMyr : null;
+  const totalValueMYR = usdToMyr !== null ? totalValueUSD * usdToMyr : null;
 
   const formatUSD = (value: number) =>
     new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: "USD",
+      currency: "USD"
     }).format(value);
+
+  const sortedItems = [...items].sort((a, b) => {
+    switch (sortBy) {
+      case "name_asc":
+        return a.card_name.localeCompare(b.card_name);
+
+      case "name_desc":
+        return b.card_name.localeCompare(a.card_name);
+
+      case "price_asc": {
+        const priceA = a.latest_market_price;
+        const priceB = b.latest_market_price;
+
+        if (priceA === null) return 1;
+        if (priceB === null) return -1;
+
+        return Number(priceA) - Number(priceB);
+      }
+
+      case "price_desc": {
+        const priceA = a.latest_market_price;
+        const priceB = b.latest_market_price;
+
+        if (priceA === null) return 1;
+        if (priceB === null) return -1;
+
+        return Number(priceB) - Number(priceA);
+      }
+
+      default:
+        return 0;
+    }
+  });
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -87,9 +116,7 @@ export default function Watchlist() {
         <div className="flex items-center gap-2">
           <Bookmark size={24} className="text-primary" />
 
-          <h2 className="text-2xl font-bold text-text-primary">
-            Watchlist
-          </h2>
+          <h2 className="text-2xl font-bold text-text-primary">Watchlist</h2>
         </div>
 
         <p className="mt-2 text-sm text-text-secondary">
@@ -142,22 +169,32 @@ export default function Watchlist() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-semibold text-text-primary">
           Your Saved Cards
         </h3>
 
-        <button
-          onClick={fetchWatchlist}
-          disabled={loading}
-          className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text-primary transition hover:border-primary disabled:opacity-50"
-        >
-          <RefreshCw
-            size={16}
-            className={loading ? "animate-spin" : ""}
-          />
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={sortBy}
+            onChange={(event) => setSortBy(event.target.value)}
+            className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-primary"
+          >
+            <option value="name_asc">Name: A–Z</option>
+            <option value="name_desc">Name: Z–A</option>
+            <option value="price_asc">Price: Low to High</option>
+            <option value="price_desc">Price: High to Low</option>
+          </select>
+
+          <button
+            onClick={fetchWatchlist}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text-primary transition hover:border-primary disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -181,7 +218,7 @@ export default function Watchlist() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {items.map((item) => {
+          {sortedItems.map((item) => {
             const price = Number(item.latest_market_price ?? 0);
 
             return (
@@ -222,12 +259,11 @@ export default function Watchlist() {
                       : "N/A"}
                   </p>
 
-                  {item.latest_market_price !== null &&
-                    usdToMyr !== null && (
-                      <p className="mt-1 text-sm font-semibold text-green-600 dark:text-green-400">
-                        ≈ RM {(price * usdToMyr).toFixed(2)}
-                      </p>
-                    )}
+                  {item.latest_market_price !== null && usdToMyr !== null && (
+                    <p className="mt-1 text-sm font-semibold text-green-600 dark:text-green-400">
+                      ≈ RM {(price * usdToMyr).toFixed(2)}
+                    </p>
+                  )}
                 </div>
 
                 <button

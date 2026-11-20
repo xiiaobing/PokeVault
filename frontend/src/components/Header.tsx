@@ -1,6 +1,7 @@
 import { Bell, Menu, Search, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useState } from "react";
 
 interface HeaderProps {
   activePage: string;
@@ -10,6 +11,18 @@ interface HeaderProps {
 export default function Header({ activePage, onMenuClick }: HeaderProps) {
   const { logout, username } = useAuth();
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleHeaderSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const query = searchQuery.trim();
+
+    if (!query) return;
+
+    navigate(`/search?q=${encodeURIComponent(query)}`);
+    setSearchQuery("");
+  };
 
   const handleLogout = () => {
     logout();
@@ -39,17 +52,26 @@ export default function Header({ activePage, onMenuClick }: HeaderProps) {
 
       {/* Right section */}
       <div className="flex items-center gap-3 sm:gap-5">
-        <div className="relative hidden sm:block">
-          <Search
-            size={18}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"
-          />
+        <form
+          onSubmit={handleHeaderSearch}
+          className="relative hidden sm:block"
+        >
+          <button
+            type="submit"
+            title="Search cards"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-primary"
+          >
+            <Search size={18} />
+          </button>
+
           <input
             type="text"
-            placeholder="Search..."
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search Pokémon cards..."
             className="w-48 rounded-xl border border-border bg-surface py-2.5 pl-10 pr-4 text-sm text-text-primary outline-none transition focus:border-primary lg:w-64"
           />
-        </div>
+        </form>
 
         <button className="relative rounded-xl p-2 text-text-secondary transition hover:bg-surface-light hover:text-text-primary">
           <Bell size={21} />

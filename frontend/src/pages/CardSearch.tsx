@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import type { FormEvent } from "react";
 import {
   Search,
@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import AuthenticatedImage from "../components/AuthenticatedImage";
-
+import { useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { searchCards, scanCard } from "../services/cardService";
 import { addCollectionItem } from "../services/collectionService";
 import type { Card, CardPriceHistory } from "../types/card";
@@ -366,6 +367,8 @@ export default function CardSearch() {
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const [scanning, setScanning] = useState(false);
 
+  const [searchParams] = useSearchParams();
+
   useEffect(() => {
     const fetchExchangeRate = async () => {
       try {
@@ -390,12 +393,8 @@ export default function CardSearch() {
     fetchWatchlist();
   }, []);
 
-  async function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    const searchQuery = query.trim();
-
-    if (!searchQuery) {
+  const performSearch = useCallback(async (searchQuery: string) => {
+    if (!searchQuery.trim()) {
       setError("Please enter a card name or card identifier.");
       setCards([]);
       setTotalCount(0);
@@ -432,6 +431,20 @@ export default function CardSearch() {
       setLoading(false);
       setScanning(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const searchQuery = searchParams.get("q")?.trim();
+
+    if (!searchQuery) return;
+
+    setQuery(searchQuery);
+    void performSearch(searchQuery);
+  }, [searchParams, performSearch]);
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await performSearch(query.trim());
   }
 
   async function handleScan(file: File) {

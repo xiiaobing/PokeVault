@@ -24,6 +24,7 @@ export default function Collection() {
   const [error, setError] = useState("");
   const [usdToMyr, setUsdToMyr] = useState<number>(0);
   const [exchangeRateDate, setExchangeRateDate] = useState("");
+  const [sortBy, setSortBy] = useState("name_asc");
 
   useEffect(() => {
     const fetchCollection = async () => {
@@ -62,6 +63,39 @@ export default function Collection() {
 
   const totalMarketValueRM =
     usdToMyr !== null ? totalMarketValueUSD * usdToMyr : null;
+
+  const sortedItems = [...items].sort((a, b) => {
+    switch (sortBy) {
+      case "name_asc":
+        return a.card_name.localeCompare(b.card_name);
+
+      case "name_desc":
+        return b.card_name.localeCompare(a.card_name);
+
+      case "price_asc": {
+        const priceA = a.latest_market_price;
+        const priceB = b.latest_market_price;
+
+        if (priceA === null) return 1;
+        if (priceB === null) return -1;
+
+        return Number(priceA) - Number(priceB);
+      }
+
+      case "price_desc": {
+        const priceA = a.latest_market_price;
+        const priceB = b.latest_market_price;
+
+        if (priceA === null) return 1;
+        if (priceB === null) return -1;
+
+        return Number(priceB) - Number(priceA);
+      }
+
+      default:
+        return 0;
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -118,12 +152,24 @@ export default function Collection() {
 
           {/* Collection cards */}
           <div>
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Your Cards</h3>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">Your Cards</h3>
+                <span className="text-sm text-text-secondary">
+                  {items.length} items
+                </span>
+              </div>
 
-              <span className="text-sm text-text-secondary">
-                {items.length} items
-              </span>
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-primary"
+              >
+                <option value="name_asc">Name: A–Z</option>
+                <option value="name_desc">Name: Z–A</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+              </select>
             </div>
 
             {items.length === 0 ? (
@@ -132,7 +178,7 @@ export default function Collection() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                {items.map((item) => {
+                {sortedItems.map((item) => {
                   const marketPrice = Number(item.latest_market_price) || 0;
 
                   const marketPriceRM =

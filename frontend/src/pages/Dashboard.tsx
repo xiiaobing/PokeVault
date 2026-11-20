@@ -107,16 +107,16 @@ export default function Dashboard() {
         />
 
         <StatCard
-          title="Total Cards"
+          title="Total Items"
           value={summary.total_cards.toLocaleString()}
-          change="Cards in your collection"
+          change="Items in your collection"
           icon={Layers}
         />
 
         <StatCard
           title="Watchlist"
           value={summary.watchlist_count.toLocaleString()}
-          change="Cards being monitored"
+          change="Items being monitored"
           icon={Eye}
         />
 
@@ -180,10 +180,15 @@ export default function Dashboard() {
                 />
 
                 <YAxis
+                  width={80}
                   stroke="#a1a1aa"
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(value) => `RM${value}`}
+                  tickCount={5}
+                  domain={[0, "auto"]}
+                  tickFormatter={(value) =>
+                    `RM${Number(value).toLocaleString("en-MY")}`
+                  }
                 />
 
                 <Tooltip
@@ -212,15 +217,15 @@ export default function Dashboard() {
         )}
       </section>
 
-      {/* Most valuable cards */}
+      {/* Most valuable items */}
       <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6">
         <div className="mb-6">
           <h3 className="font-semibold text-text-primary">
-            Most Valuable Cards
+            Most Valuable Items
           </h3>
 
           <p className="mt-1 text-sm text-text-secondary">
-            Your four most valuable cards based on current market prices
+            Your four most valuable items based on current market prices
           </p>
         </div>
 
