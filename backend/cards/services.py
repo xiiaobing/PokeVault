@@ -1,12 +1,9 @@
-
 import os
 import requests
 from decimal import Decimal
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from django.db.models import Max, Q
 from django.core.files.base import ContentFile
-from urllib.parse import urlparse
 
 
 from .models import Card, CardPriceHistory, CardSearchCache

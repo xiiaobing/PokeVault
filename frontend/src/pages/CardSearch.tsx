@@ -349,12 +349,49 @@ function CardResult({
   );
 }
 
+const SEARCH_STORAGE_KEY = "pokevault_card_search";
+
+interface SavedSearch {
+  query: string;
+  cards: Card[];
+  totalCount: number;
+}
+
+function loadSavedSearch(): SavedSearch {
+  try {
+    const saved = sessionStorage.getItem(SEARCH_STORAGE_KEY);
+
+    if (saved) {
+      const parsed = JSON.parse(saved);
+
+      return {
+        query: parsed.query ?? "",
+        cards: Array.isArray(parsed.cards) ? parsed.cards : [],
+        totalCount: parsed.totalCount ?? 0
+      };
+    }
+  } catch (error) {
+    console.error("Failed to restore card search:", error);
+  }
+
+  return {
+    query: "",
+    cards: [],
+    totalCount: 0
+  };
+}
+
 export default function CardSearch() {
-  const [query, setQuery] = useState("");
   const [usdToMyr, setUsdToMyr] = useState<number | null>(null);
   const [exchangeRateDate, setExchangeRateDate] = useState("");
-  const [cards, setCards] = useState<Card[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
+
+  const [initialSearch] = useState<SavedSearch>(() => loadSavedSearch());
+
+  const [query, setQuery] = useState(initialSearch.query);
+  const [cards, setCards] = useState<Card[]>(initialSearch.cards);
+  const [totalCount, setTotalCount] = useState(initialSearch.totalCount);
+
+  const [savedQuery, setSavedQuery] = useState(initialSearch.query);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -368,6 +405,17 @@ export default function CardSearch() {
   const [scanning, setScanning] = useState(false);
 
   const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    sessionStorage.setItem(
+      SEARCH_STORAGE_KEY,
+      JSON.stringify({
+        query: savedQuery,
+        cards,
+        totalCount
+      })
+    );
+  }, [savedQuery, cards, totalCount]);
 
   useEffect(() => {
     const fetchExchangeRate = async () => {
@@ -411,6 +459,7 @@ export default function CardSearch() {
 
       setCards(data.results);
       setTotalCount(data.count);
+      setSavedQuery(searchQuery);
     } catch (err) {
       console.error("Card search failed:", err);
 
@@ -438,9 +487,14 @@ export default function CardSearch() {
 
     if (!searchQuery) return;
 
+    // Avoid searching again if these results are already restored.
+    if (searchQuery === savedQuery && cards.length > 0) {
+      return;
+    }
+
     setQuery(searchQuery);
     void performSearch(searchQuery);
-  }, [searchParams, performSearch]);
+  }, [searchParams, performSearch, savedQuery, cards.length]);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -473,9 +527,12 @@ export default function CardSearch() {
       }
 
       // Display the recognized card using the existing CardResult.
+      const recognizedName = result.recognition?.name || result.card.name;
+
       setCards([result.card]);
       setTotalCount(1);
-      setQuery(result.recognition?.name || result.card.name);
+      setQuery(recognizedName);
+      setSavedQuery(recognizedName);
     } catch (err) {
       console.error("Card scanning failed:", err);
 
