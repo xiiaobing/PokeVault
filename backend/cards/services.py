@@ -38,7 +38,7 @@ def search_cards(query):
         f"{BASE_URL}/search",
         headers=headers,
         params=params,
-        timeout=15
+        timeout=30
     )
 
     if response.status_code == 429:
