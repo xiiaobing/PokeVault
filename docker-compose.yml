@@ -1,4 +1,5 @@
 services:
+  
   backend:
     build:
       context: ./backend
@@ -9,10 +10,17 @@ services:
       - ./backend/.env
     environment:
       DB_HOST: host.docker.internal
+      PYTHONUTF8: "1"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./backend:/app
+    command: >
+      sh -c "
+        python manage.py update_exchange_rate;
+        python manage.py update_portfolio_snapshots || echo 'WARNING: Portfolio snapshot creation failed.';
+        python manage.py runserver 0.0.0.0:8000
+      "
 
   frontend:
     build:

@@ -4,6 +4,7 @@ FROM python:3.13-slim
 # Prevent Python from generating unnecessary cache files
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONUTF8=1
 
 # Set working directory
 WORKDIR /app
@@ -26,8 +27,8 @@ RUN pip install --no-cache-dir --upgrade pip \
 # Copy backend source code
 COPY . .
 
-# Django port
+# Django application port
 EXPOSE 8000
 
-# Start Django development server
-CMD ["sh", "-c", "python manage.py update_exchange_rate; python manage.py update_portfolio_snapshots || echo 'WARNING: Portfolio snapshot creation failed.'; python manage.py runserver 0.0.0.0:8000"]
+# Start production server
+CMD ["sh", "-c", "exec gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"]
