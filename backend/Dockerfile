@@ -30,4 +30,4 @@ COPY . .
 EXPOSE 8000
 
 # Start Django development server
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["sh", "-c", "python manage.py update_exchange_rate; python manage.py update_portfolio_snapshots || echo 'WARNING: Portfolio snapshot creation failed.'; python manage.py runserver 0.0.0.0:8000"]
