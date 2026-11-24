@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import AuthenticatedImage from "../components/AuthenticatedImage";
-import { useNavigate } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import { searchCards, scanCard } from "../services/cardService";
 import { addCollectionItem } from "../services/collectionService";

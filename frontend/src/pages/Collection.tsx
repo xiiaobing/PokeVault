@@ -23,7 +23,7 @@ export default function Collection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [usdToMyr, setUsdToMyr] = useState<number>(0);
-  const [exchangeRateDate, setExchangeRateDate] = useState("");
+  const [, setExchangeRateDate] = useState("");
   const [sortBy, setSortBy] = useState("name_asc");
 
   useEffect(() => {
