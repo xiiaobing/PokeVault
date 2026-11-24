@@ -14,9 +14,32 @@ jobs:
     name: Backend CI
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: pokewallet_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d pokewallet_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
       DEBUG: "False"
+
+      DB_NAME: pokewallet_ci
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+
+      DATABASE_URL: ""
 
     steps:
       - name: Checkout repository
@@ -35,6 +58,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Verify database configuration
+        working-directory: backend
+        run: |
+          python -c "import os; print('DB_NAME:', repr(os.getenv('DB_NAME'))); print('DATABASE_URL configured:', bool(os.getenv('DATABASE_URL')))"
+
       - name: Django system check
         working-directory: backend
         run: python manage.py check
@@ -46,6 +74,7 @@ jobs:
       - name: Run backend tests
         working-directory: backend
         run: python manage.py test
+
 
   frontend:
     name: Frontend CI
