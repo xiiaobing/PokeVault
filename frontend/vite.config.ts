@@ -14,10 +14,10 @@ export default defineConfig({
       'retreat-renovate-neutron.ngrok-free.dev',
     ],
     proxy: {
-      '/api': {
-        target: 'http://backend:8000',
-        changeOrigin: true,
-      },
+    '/api': {
+      target: process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000',
+      changeOrigin: true,
     },
+  },
   },
 })
