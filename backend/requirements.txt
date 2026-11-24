@@ -4,6 +4,7 @@ streamlit
 python-dotenv
 django
 djangorestframework
+django-cors-headers
 psycopg[binary]
 requests
 Pillow
