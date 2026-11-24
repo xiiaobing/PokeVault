@@ -98,7 +98,7 @@ export default function Dashboard() {
       </section>
 
       {/* Statistics */}
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-2 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
         <StatCard
           title="Collection Value"
           value={formatCurrency(summary.collection_value_myr, "MYR")}

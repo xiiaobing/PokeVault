@@ -123,29 +123,34 @@ export default function Collection() {
       ) : (
         <>
           {/* Collection statistics */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-border bg-surface p-5">
-              <p className="text-sm text-text-secondary">Total Market Value</p>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="rounded-xl border border-border bg-surface p-3 sm:p-5">
+              <p className="text-xs text-text-secondary sm:text-sm">
+                Total Market Value
+              </p>
 
-              <h3 className="mt-2 text-2xl font-bold text-emerald-500">
+              <h3 className="mt-1 truncate text-lg font-bold text-emerald-500 sm:mt-2 sm:text-2xl">
                 {totalMarketValueRM !== null
                   ? formatRM(totalMarketValueRM)
-                  : "Loading exchange rate..."}
+                  : "Loading..."}
               </h3>
 
-              <p className="mt-1 text-xs text-text-secondary">
-                {formatUSD(totalMarketValueUSD)} · Based on TCGplayer prices
+              <p className="mt-1 text-[10px] text-text-secondary sm:text-xs">
+                {formatUSD(totalMarketValueUSD)} · TCGplayer prices
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-surface p-5">
-              <p className="text-sm text-text-secondary">Total Cards</p>
+            <div className="rounded-xl border border-border bg-surface p-3 sm:p-5">
+              <p className="text-xs text-text-secondary sm:text-sm">
+                Total Cards
+              </p>
 
-              <h3 className="mt-2 text-2xl font-bold">{totalCards}</h3>
+              <h3 className="mt-1 text-lg font-bold sm:mt-2 sm:text-2xl">
+                {totalCards}
+              </h3>
 
-              <p className="mt-1 text-xs text-text-secondary">
-                {items.length} unique card{items.length !== 1 ? "s" : ""} in
-                your collection
+              <p className="mt-1 text-[10px] text-text-secondary sm:text-xs">
+                {items.length} unique card{items.length !== 1 ? "s" : ""}
               </p>
             </div>
           </div>

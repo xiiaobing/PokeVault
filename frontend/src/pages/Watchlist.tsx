@@ -134,28 +134,32 @@ export default function Watchlist() {
         )}
       </section>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-sm text-text-secondary">Watched Cards</p>
-          <p className="mt-2 text-2xl font-bold text-text-primary">
+      <section className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="min-w-0 rounded-xl border border-border bg-surface p-3 sm:p-4">
+          <p className="text-[11px] leading-tight text-text-secondary sm:text-sm">
+            Watched Cards
+          </p>
+          <p className="mt-1 truncate text-base font-bold text-text-primary sm:mt-2 sm:text-2xl">
             {items.length}
           </p>
         </div>
 
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-sm text-text-secondary">
-            Total Market Value (USD)
+        <div className="min-w-0 rounded-xl border border-border bg-surface p-3 sm:p-4">
+          <p className="text-[11px] leading-tight text-text-secondary sm:text-sm">
+            <span className="sm:hidden">Value (USD)</span>
+            <span className="hidden sm:inline">Total Market Value (USD)</span>
           </p>
-          <p className="mt-2 text-2xl font-bold text-text-primary">
+          <p className="mt-1 truncate text-base font-bold text-text-primary sm:mt-2 sm:text-2xl">
             {formatUSD(totalValueUSD)}
           </p>
         </div>
 
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-sm text-text-secondary">
-            Total Market Value (MYR)
+        <div className="min-w-0 rounded-xl border border-border bg-surface p-3 sm:p-4">
+          <p className="text-[11px] leading-tight text-text-secondary sm:text-sm">
+            <span className="sm:hidden">Value (MYR)</span>
+            <span className="hidden sm:inline">Total Market Value (MYR)</span>
           </p>
-          <p className="mt-2 text-2xl font-bold text-primary">
+          <p className="mt-1 truncate text-base font-bold text-primary sm:mt-2 sm:text-2xl">
             {totalValueMYR !== null
               ? `RM ${totalValueMYR.toFixed(2)}`
               : "Loading..."}

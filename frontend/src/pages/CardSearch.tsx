@@ -606,7 +606,7 @@ export default function CardSearch() {
                 type="text"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="e.g. Charizard or 24541 199"
+                placeholder="e.g. Charizard or Mega Evolutions"
                 className="w-full rounded-xl border border-border bg-background py-3.5 pl-12 pr-4 text-sm text-text-primary outline-none transition placeholder:text-text-secondary focus:border-primary"
               />
             </div>
