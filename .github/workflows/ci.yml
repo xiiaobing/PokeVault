@@ -81,8 +81,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Build Docker images
-        run: docker compose build
+      - name: Build backend Docker image
+        run: |
+          docker build -t tcg-backend ./backend
+
+      - name: Build frontend Docker image
+        run: |
+          docker build -t tcg-frontend ./frontend
 
   deploy:
     name: Deploy to Render
